@@ -232,6 +232,7 @@ def plot_boxes(img, boxes, savename=None, class_names=None, net_w=416, net_h=416
         x2 = box[2]/net_w * width
         y2 = box[3]/net_h * height
 
+        #fnt = ImageFont.truetype("/media/oeasy/0BE50EFF0BE50EFF/Windows/Fonts/arial.ttf", 30)
         fnt = ImageFont.truetype("arial.ttf", 30)
 
         rgb = (255, 0, 0)
@@ -249,7 +250,8 @@ def plot_boxes(img, boxes, savename=None, class_names=None, net_w=416, net_h=416
         draw.rectangle([x1, y1, x2, y2], outline=rgb)
     if savename:
         print("save plot results to %s" % savename)
-        img.save(savename)
+        #img.save(savename)
+        img.show()
     return img
 
 

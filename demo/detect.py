@@ -29,6 +29,7 @@ def detect(config):
     net.train(is_training)
 
     # Set data parallel
+    #cuda = torch.cuda.is_available()
     net = nn.DataParallel(net)
     net = net.cuda()
 
@@ -65,7 +66,7 @@ def detect(config):
 
     namefile = config["classname_path"]
     class_names = load_class_names(namefile)
-    plot_boxes(img, output, 'predictions.jpg', class_names)
+    plot_boxes(img, output, config["img_path"], class_names)
 
 
 def main():
@@ -90,5 +91,62 @@ def main():
     torch.cuda.empty_cache()
 
 
+
+#yolo3检测类
+class YoloDetect(object):
+    # 初始化加载模型
+    def __init__(self):
+        # 初始化网络
+        self.config = importlib.import_module("params").TRAINING_PARAMS
+        net = ModelMain(self.config, is_training=False)
+        net.train(False)
+
+        # 设置GPU并行运算
+        net = nn.DataParallel(net)
+        net = net.cuda()
+        self.net = net
+
+        # Restore pretrain model
+        if self.config["pretrain_snapshot"]:
+            state_dict = torch.load(self.config["pretrain_snapshot"])
+            self.net.load_state_dict(state_dict)
+        else:
+            logging.warning("missing pretrain_snapshot!!!")
+
+        # YOLO loss with 3 scales
+        self.yolo_losses = []
+        for i in range(3):
+            self.yolo_losses.append(YOLOLoss(self.config["yolo"]["anchors"][i],
+                                             self.config["yolo"]["classes"], (self.config["img_w"], self.config["img_h"])))
+
+    def detect(self, img):
+
+        resized = img.resize((416, 416))
+        input = image2torch(resized)
+        start = time.time()
+        input = input.to(torch.device("cuda"))
+        outputs = self.net(input)
+        output_list = []
+        for i in range(3):
+            output_list.append(self.yolo_losses[i](outputs[i]))
+        output = torch.cat(output_list, 1)
+        output = non_max_suppression(output, self.config["yolo"]["classes"], conf_thres=0.5, nms_thres=0.4)
+        finish = time.time()
+
+        print('%s: Predicted in %f seconds.' % (self.config["img_path"], (finish - start)))
+
+        namefile = self.config["classname_path"]
+        class_names = load_class_names(namefile)
+        plot_boxes(img, output, self.config["img_path"], class_names)
+def test():
+
+    yolo = YoloDetect()
+    img = Image.open('1.jpeg').convert('RGB')
+    yolo.detect(img)
+
+
+
+
 if __name__ == "__main__":
-    main()
+    #main()
+    test()
